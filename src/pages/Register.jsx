@@ -1,16 +1,30 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import axios from 'axios';
 
 const Register = () => {
+
+  
   const [name, setName] = useState('');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const { register } = useAuth();
   const navigate = useNavigate();
-
+  
   const handleSubmit = (e) => {
+    axios.post("https://about-administrative-nursery-family.trycloudflare.com/auth/register", {
+      name,
+      username,
+      password
+    })
+    .then(response => {
+      console.log(response.data);
+    })
+    .catch(error => {
+      console.error(error);
+    })
     e.preventDefault();
     if (!name || !username || !password) {
       setError('Please fill in all fields'); return;
