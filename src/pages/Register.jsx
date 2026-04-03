@@ -9,7 +9,7 @@ const Register = () => {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const { register } = useAuth();
+  const { loginSuccess } = useAuth();
   const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
@@ -29,14 +29,13 @@ const Register = () => {
         password
       });
 
-      console.log('Registration success:', response.data);
+      console.log('Ro`yxatdan o`tish muvaffaqiyatli:', response.data);
 
-      const res = register(name, username, password);
-      if (res.success || response.status === 201) {
-        navigate('/cabinet/dashboard');
-      } else {
-        setError(res.message || 'Ro`yxatdan o`tishda xatolik yuz berdi.');
-      }
+      // Update the auth state with user data from backend
+      loginSuccess(response.data);
+      
+      // Navigate to dashboard
+      navigate('/cabinet/dashboard');
     } catch (err) {
       console.error('Registration error:', err);
       setError(err.response?.data?.message || 'Serverda xatolik. Iltimos qaytadan urinib ko`ring.');

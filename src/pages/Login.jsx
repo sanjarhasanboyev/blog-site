@@ -8,7 +8,7 @@ const Login = () => {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const { login } = useAuth();
+  const { loginSuccess } = useAuth();
   const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
@@ -27,16 +27,13 @@ const Login = () => {
         password
       });
 
-      console.log('Login success:', response.data);
+      console.log('Login muvaffaqiyatli:', response.data);
       
-      // If the backend returns user data, we update our local context
-      const res = login(username, password);
+      // Update the auth state with user data from backend
+      loginSuccess(response.data);
       
-      if (res.success || response.status === 200) {
-        navigate('/cabinet/dashboard');
-      } else {
-        setError(res.message || 'Login muvaffaqiyatli yakunlanmadi.');
-      }
+      // Navigate to dashboard
+      navigate('/cabinet/dashboard');
     } catch (err) {
       console.error('Login error:', err);
       setError(err.response?.data?.message || 'Serverda xatolik. Iltimos qaytadan urinib ko`ring.');

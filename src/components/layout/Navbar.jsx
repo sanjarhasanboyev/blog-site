@@ -3,6 +3,8 @@ import { FiLogOut } from 'react-icons/fi';
 
 const Navbar = () => {
   const { user, logout } = useAuth();
+  const currentUser = user?.user?.name;
+  console.log(user)
 
   return (
     <nav className="sticky top-0 z-50 w-full bg-white/80 backdrop-blur-md border-b border-gray-200 transition-colors">
@@ -12,7 +14,7 @@ const Navbar = () => {
         </div>
         <div className="flex items-center gap-6">
           <span className="text-sm font-medium text-gray-500 hidden sm:block">
-            Welcome, <span className="text-gray-900 font-semibold">{user?.name}</span>
+            Welcome, <span className="text-gray-900 font-semibold">{user?.user?.name}</span>
           </span>
           <button 
             onClick={logout}

@@ -1,61 +1,68 @@
-import { createContext, useState, useContext } from 'react';
+import { createContext, useState, useContext, useEffect } from 'react';
+import axios from 'axios';
 
 const CommentContext = createContext();
 
 export const useComments = () => useContext(CommentContext);
 
 export const CommentProvider = ({ children }) => {
-  const [comments, setComments] = useState(() => {
-    const storedComments = localStorage.getItem('commentsDb');
-    if (storedComments) {
-      try {
-        const parsed = JSON.parse(storedComments);
-        // Normalize old data format to new format
-        return parsed.map(c => ({
-          ...c,
-          user: c.user || { name: c.userName || 'Unknown', username: 'user' },
-          createdAt: c.createdAt || c.timestamp || new Date().toISOString()
-        }));
-      } catch (e) {
-        return [];
-      }
-    }
-    
-    const initial = [
-      { 
-        id: '1', 
-        user: { name: 'Admin', username: 'admin' }, 
-        text: 'Minimalistik platformamizga xush kelibsiz! Fikringizni qoldiring.', 
-        createdAt: new Date().toISOString() 
-      }
-    ];
-    localStorage.setItem('commentsDb', JSON.stringify(initial));
-    return initial;
-  });
+  const [comments, setComments] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
 
-  const addComment = (text, user) => {
-    if (!text.trim() || !user) return;
-    
-    const newComment = {
-      id: Date.now().toString(),
-      user: { name: user.name, username: user.username },
-      text: text.trim(),
-      createdAt: new Date().toISOString()
-    };
-    
-    const updated = [newComment, ...comments];
-    setComments(updated);
-    localStorage.setItem('commentsDb', JSON.stringify(updated));
+  const fetchComments = async () => {
+    setLoading(true);
+    try {
+      const response = await axios.get("https://flexible-century-stunning-money.trycloudflare.com/comments");
+      // The backend might return comments in a specific format, ensure it's an array
+      setComments(Array.isArray(response.data) ? response.data : []);
+      setError(null);
+    } catch (err) {
+      console.error("Error fetching comments:", err);
+      setError("Fikrlarni yuklab bo'lmadi.");
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const deleteComment = (id) => {
-    const updated = comments.filter(c => c.id !== id);
-    setComments(updated);
-    localStorage.setItem('commentsDb', JSON.stringify(updated));
+  const addComment = async (text, user) => {
+    if (!text.trim() || !user) return;
+
+    try {
+      // Assuming the backend expectation for the new comment structure
+      const response = await axios.post("https://flexible-century-stunning-money.trycloudflare.com/comments", {
+        name: user.user?.name || user.name,
+        username: user.user?.username || user.username,
+        text: text.trim()
+      });
+
+      // Update the local state with the new comment from the server response
+      if (response.data) {
+        setComments(prev => [response.data, ...prev]);
+      } else {
+        // Fallback: manually fetch if the post didn't return the new object
+        fetchComments();
+      }
+    } catch (err) {
+      console.error("Error adding comment:", err);
+      alert("Fikr qoldirishda xatolik yuz berdi.");
+    }
+  };
+
+  const deleteComment = async (id) => {
+    // Note: This depends on whether the backend supports DELETE /comments/:id
+    try {
+      await axios.delete(`https://flexible-century-stunning-money.trycloudflare.com/comments/${id}`);
+      setComments(prev => prev.filter(c => c.id !== id));
+    } catch (err) {
+      console.error("Error deleting comment:", err);
+      // Even if DELETE fails on server (maybe not implemented), we might want to keep local state for now
+      // setComments(prev => prev.filter(c => c.id !== id)); 
+    }
   };
 
   return (
-    <CommentContext.Provider value={{ comments, addComment, deleteComment }}>
+    <CommentContext.Provider value={{ comments, loading, error, fetchComments, addComment, deleteComment }}>
       {children}
     </CommentContext.Provider>
   );
