@@ -14,7 +14,7 @@ const Register = () => {
   const navigate = useNavigate();
   
   const handleSubmit = (e) => {
-    axios.post("https://about-administrative-nursery-family.trycloudflare.com/auth/register", {
+    axios.post("https://flexible-century-stunning-money.trycloudflare.com/auth/register", {
       name,
       username,
       password

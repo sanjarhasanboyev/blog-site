@@ -2,13 +2,17 @@ import { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useComments } from '../../context/CommentContext';
 import { FiTrash2 } from 'react-icons/fi';
+import axios from 'axios';
 
 const Dashboard = () => {
+  const data = axios.get("https://about-administrative-nursery-family.trycloudflare.com/comments")
+  .then(respose => console.log(respose.data))
   const { user } = useAuth();
   const { comments, addComment, deleteComment } = useComments();
   const [text, setText] = useState('');
 
   const handlePost = () => {
+    
     if (text.trim()) {
       addComment(text, user);
       setText('');
