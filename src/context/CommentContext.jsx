@@ -1,5 +1,5 @@
 import { createContext, useState, useContext, useEffect } from 'react';
-import axios from 'axios';
+import api from '../api/api';
 
 const CommentContext = createContext();
 
@@ -13,7 +13,7 @@ export const CommentProvider = ({ children }) => {
   const fetchComments = async () => {
     setLoading(true);
     try {
-      const response = await axios.get("https://flexible-century-stunning-money.trycloudflare.com/comments");
+      const response = await api.get("/comments");
       // The backend might return comments in a specific format, ensure it's an array
       setComments(Array.isArray(response.data) ? response.data : []);
       setError(null);
@@ -30,7 +30,7 @@ export const CommentProvider = ({ children }) => {
 
     try {
       // Assuming the backend expectation for the new comment structure
-      const response = await axios.post("https://gale-appreciated-reconstruction-blast.trycloudflare.com/comments", {
+      const response = await api.post("/comments", {
         name: user.user?.name || user.name,
         username: user.user?.username || user.username,
         text: text.trim()
@@ -52,7 +52,7 @@ export const CommentProvider = ({ children }) => {
   const deleteComment = async (id) => {
     // Note: This depends on whether the backend supports DELETE /comments/:id
     try {
-      await axios.delete(`https://flexible-century-stunning-money.trycloudflare.com/comments/${id}`);
+      await api.delete(`/comments/${id}`);
       setComments(prev => prev.filter(c => c.id !== id));
     } catch (err) {
       console.error("Error deleting comment:", err);

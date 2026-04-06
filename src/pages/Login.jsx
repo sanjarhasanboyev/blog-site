@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import axios from 'axios';
+import api from '../api/api';
 
 const Login = () => {
   const [username, setUsername] = useState('');
@@ -22,7 +22,7 @@ const Login = () => {
     setError('');
 
     try {
-      const response = await axios.post('https://gale-appreciated-reconstruction-blast.trycloudflare.com/auth/login', {
+      const response = await api.post('/auth/login', {
         username,
         password
       });

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import axios from 'axios';
+import api from '../api/api';
 
 const Register = () => {
   const [name, setName] = useState('');
@@ -23,7 +23,7 @@ const Register = () => {
     setError('');
 
     try {
-      const response = await axios.post("https://gale-appreciated-reconstruction-blast.trycloudflare.com/auth/register", {
+      const response = await api.post("/auth/register", {
         name,
         username,
         password
