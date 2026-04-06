@@ -196,7 +196,14 @@ const Dashboard = () => {
                     <span className="text-gray-400 text-sm">{formatDate(comment.createdAt || comment.timestamp)}</span>
                   </div>
                   <p className="text-gray-800 text-[15px] leading-relaxed break-words pr-8 whitespace-pre-wrap">
-                    {comment.text}
+                    {
+                    comment.text.split(' ').map((word) => {
+                      if (word.startsWith('@')) {
+                        return <span key={word} className="text-blue-500 font-bold">{word + " "}</span>;
+                      }
+                      return word + " ";
+                    })
+                    }
                   </p>
                 </div>
               </div>
