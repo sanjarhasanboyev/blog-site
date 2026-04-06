@@ -22,7 +22,7 @@ const Login = () => {
     setError('');
 
     try {
-      const response = await axios.post('https://flexible-century-stunning-money.trycloudflare.com/auth/login', {
+      const response = await axios.post('https://gale-appreciated-reconstruction-blast.trycloudflare.com/auth/login', {
         username,
         password
       });

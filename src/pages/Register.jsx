@@ -23,7 +23,7 @@ const Register = () => {
     setError('');
 
     try {
-      const response = await axios.post("https://flexible-century-stunning-money.trycloudflare.com/auth/register", {
+      const response = await axios.post("https://gale-appreciated-reconstruction-blast.trycloudflare.com/auth/register", {
         name,
         username,
         password

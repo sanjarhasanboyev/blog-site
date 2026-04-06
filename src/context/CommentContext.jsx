@@ -30,7 +30,7 @@ export const CommentProvider = ({ children }) => {
 
     try {
       // Assuming the backend expectation for the new comment structure
-      const response = await axios.post("https://flexible-century-stunning-money.trycloudflare.com/comments", {
+      const response = await axios.post("https://gale-appreciated-reconstruction-blast.trycloudflare.com/comments", {
         name: user.user?.name || user.name,
         username: user.user?.username || user.username,
         text: text.trim()
