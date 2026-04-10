@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useComments } from '../../context/CommentContext';
-import { FiTrash2 } from 'react-icons/fi';
+import { FiTrash2, FiSmile } from 'react-icons/fi';
 import api from '../../api/api';
 import MentionDropdown from '../../components/mentions/MentionDropdown';
+import Picker from 'emoji-picker-react';
 
 const Dashboard = () => {
   const { user } = useAuth();
@@ -14,11 +15,25 @@ const Dashboard = () => {
   const [showMentions, setShowMentions] = useState(false);
   const [mentionQuery, setMentionQuery] = useState('');
   const [activeIndex, setActiveIndex] = useState(0);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const textareaRef = useRef(null);
+  const emojiPickerRef = useRef(null);
 
   useEffect(() => {
     fetchComments();
     fetchUsers();
+  }, []);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (emojiPickerRef.current && !emojiPickerRef.current.contains(event.target)) {
+        setShowEmojiPicker(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
   }, []);
 
   const fetchUsers = async () => {
@@ -95,6 +110,20 @@ const Dashboard = () => {
     }
   };
 
+  const onEmojiClick = (emojiData) => {
+    const selectionStart = textareaRef.current?.selectionStart || text.length;
+    const newText = text.substring(0, selectionStart) + emojiData.emoji + text.substring(selectionStart);
+    setText(newText);
+    
+    setTimeout(() => {
+      if (textareaRef.current) {
+        textareaRef.current.focus();
+        const nextPos = selectionStart + emojiData.emoji.length;
+        textareaRef.current.setSelectionRange(nextPos, nextPos);
+      }
+    }, 0);
+  };
+
   const handlePost = async () => {
     if (text.trim() && user) {
       await addComment(text, user);
@@ -139,7 +168,31 @@ const Dashboard = () => {
                 />
               </div>
             )}
-            <div className="flex justify-end mt-2 pt-3 border-t border-gray-100">
+            <div className="flex justify-between items-center mt-2 pt-3 border-t border-gray-100">
+              <div className="relative" ref={emojiPickerRef}>
+                <button
+                  type="button"
+                  onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                  className="p-2 text-gray-400 hover:text-gray-800 rounded-full hover:bg-gray-100 transition-all active:scale-95 flex items-center justify-center"
+                  title="Emoji qo'shish"
+                >
+                  <FiSmile size={20} />
+                </button>
+                {showEmojiPicker && (
+                  <div className="absolute top-12 left-0 sm:-left-2 z-[60]">
+                    <div className="shadow-[0_8px_30px_rgb(0,0,0,0.12)] rounded-lg overflow-hidden border border-gray-100">
+                      <Picker 
+                        onEmojiClick={onEmojiClick} 
+                        theme="light" 
+                        autoFocusSearch={false}
+                        searchPlaceHolder="Emoji qidirish..."
+                        width={300}
+                        height={400}
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
               <button
                 onClick={handlePost}
                 disabled={!text.trim() || loading}
