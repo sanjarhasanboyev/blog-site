@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 const api = axios.create({
-  baseURL: 'https://gale-appreciated-reconstruction-blast.trycloudflare.com',
+  baseURL: 'https://highway-illustration-sought-released.trycloudflare.com',
   headers: {
     'Content-Type': 'application/json',
   },
