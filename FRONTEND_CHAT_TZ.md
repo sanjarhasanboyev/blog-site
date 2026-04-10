@@ -1,13 +1,7 @@
-# TEXNIK TOPSHIRIQ (TZ) - Frontend qismida Chat imkoniyatini yaratish
+# TEXNIK TOPSHIRIQ (TZ) - Frontend qismida Chat imkoniyatini yaratish (Kengaytirilgan versiya)
 
-Ushbu hujjat Frontend Agent (yoki dasturchi) uchun mo'ljallangan va backendda qilingan chat imkoniyatlarini ulash tartibini tushuntiradi.
-
-## 🎯 Asosiy Maqsadlar
-Frontend dasturida:
-1. Foydalanuvchining barcha chatlari (yozishmalari) ro'yxatini chiqarish.
-2. Ikki foydalanuvchi o'rtasida "Shaxsiy Chat" oynasini yaratish.
-3. Chat ichida xabarlarni tarix bilan chiqarish.
-4. WebSocket (socket.io) orqali xabarlarni jonli (real-time) qabul qilish va yuborish.
+Ushbu hujjat Frontend Agent (yoki dasturchi) uchun mo'ljallangan. 
+Backendda Real-time (Chat, Typing, Online/Offline, Unread counts) to'liq qo'llab quvvatlash rejimiga o'tkazildi.
 
 ---
 
@@ -22,78 +16,128 @@ npm install socket.io-client
 
 ## 🛠️ 2. REST API (Tarix va ma'lumotlarni tortish)
 
-Hozirgi Backendda 3 ta muhim API bor. API larni Axios bilan odatdagidek chaqirasiz. Auth uchun JWT Token yuborish esdan chiqmasin (agar backend talab qilsa).
+### 2.1 Barcha Chatlarni olish (Ro'yxat)
+Foydalanuvchining barcha yozishmalarini olib beradi. **E'tibor bering: Endi ro'yxat eng yangi xabar vaqti bo'yicha saralangan holds keladi va o'qilmaganlar soni ("unread count") ga ega.**
+- **Method:** `GET /chats/user/:userId`
+- **Qaytaradi:**:
+```json
+[
+  {
+    "id": 1,
+    "unreadCount": 2, // SHU CHATDAGI O'QILMAGAN XABARLAR SONI ❗️ 
+    "users": [
+      { "id": 1, "username": "ali", "isOnline": true, "lastSeen": "2026..." },
+      { "id": 2, "username": "vali", "isOnline": false, "lastSeen": "..." }
+    ],
+    "messages": [ { "text": "Salom...", "createdAt": "..." } ] // Oxirgi 1 ta xabar preview uchun
+  }
+]
+```
 
-### 2.1 Yangi chat ochish yoki Eskisini topish
-Foydalanuvchi qidiruvdan yoki profildan kimgadir "Xabar yozish" tugmasini bossa, aniq shu chatni (`chatId`) topib olish uchun ishlatiladi.
+### 2.2 Yangi chat ochish yoki Eskisini topish
 - **Method:** `POST /chats/start`
 - **Body:** `{ "userId1": o'z_IDsi, "userId2": suhbatdosh_IDsi }`
-- **Qaytaradi:** Chat obyekti (ichi `.id` xususiyatiga ega). Ushbu `id` ni olib keyingi bosqichda sockerga yuborasiz!
-
-### 2.2 Barcha Chatlarni olish (Ro'yxat)
-Foydalanuvchi "Mening chatlarim" bo'limiga kirganida.
-- **Method:** `GET /chats/user/:userId`
-- **Qaytaradi:** Array ko'rinishida chatlar ro'yxati. Har birida kimlar borligi va oxirgi bitta xabar kiritilgan bo'ladi.
 
 ### 2.3 Xabarlar tarixini yuklash (Chat ichi)
-Foydalanuvchi qaysidir chatga kirganida uning hamma avvalgi xabarlarini chiqarib beradi.
 - **Method:** `GET /chats/:chatId/messages`
-- **Qaytaradi:** Xabarlar qatori (`[ { id, text, user: {...}, createdAt }, ... ]`)
+- **Javobda:** har bir xabar endi `isRead` parametrini qaytaradi (to'gri tahlil qilib "✓" yoki "✓✓" vizualida ko'rsating).
 
 ---
 
-## ⚡ 3. WebSocket - Jonli Yozishma (Socket.IO)
+## ⚡ 3. WebSocket - Jonli Yozishma va Litsenziyalar
 
-Xonada xabarlarni real-time almashishi uchun socket.io o'rnatiladi. Ulanishni React `useEffect` ichida bajaring va **backend manzilini bering (masalan Cloudflare tunnel linki)**.
+Real-time xususiyatlari uchun barcha eventlar tayyor.
 
 ```javascript
 import { io } from "socket.io-client";
 
 // Backend URL ni o'zingizning API linkizizga yoki tunnelga moslang
-// Masalan: https://some-tunnel.trycloudflare.com
 const socket = io(import.meta.env.VITE_API_URL || "http://localhost:5000"); 
 
 export default function ChatRoom({ chatId, currentUser }) {
   const [messages, setMessages] = useState([]);
 
   useEffect(() => {
-    // 1-QADAM: Chat xonasiga qo'shilish 
-    // AGAR BU QILINMASA, xabarlar ikkinchi odamga yetib kelmaydi!
+    // ==========================================
+    // 0. TIZIMGA ULANISH (ONLINE STATUS UCHUN)
+    // ==========================================
+    // Saytga kirishi bilanoq barcha do'stlarga uning onlayn ekanini bildiramiz:
+    socket.emit("user_connected", currentUser.id);
+
+    // ==========================================
+    // 1. CHAT XONASIGA QO'SHILISH
+    // ==========================================
     socket.emit("join_chat", chatId);
 
-    // 2-QADAM: Boshqalar yozgan xabarni kutish va tutib olish
+    // ==========================================
+    // 2. O'QILDI ("READ RECEIPTS") - FOKUS
+    // ==========================================
+    // Agar fayzalanuvchi ushbu oynani ochib o'tirgan bo'lsa darhol kelgan "o'qilmagan" (boshqalarga tegishli)
+    // xabarlarni o'qildi deymiz.
+    socket.emit("mark_as_read", { chatId, userId: currentUser.id });
+
+    // ==========================================
+    // 3. LISTENERS (QABUL QILISH HODISALARI)
+    // ==========================================
+    
+    // a) Yangi xabar kelishi
     socket.on("receive_message", (newMessage) => {
-      // Yangi kelgan xabarni oynaga qo'shamiz
       setMessages((prev) => [...prev, newMessage]);
+      // Agar ochiq oynada tursangiz, yangi kelganini ham darxol o'qilgan qilib quyishimiz mumkin:
+      socket.emit("mark_as_read", { chatId, userId: currentUser.id });
+    });
+
+    // b) Suhbatdosh xabarni o'qidi ("✓✓")
+    socket.on("messages_read", ({ chatId, readBy }) => {
+       // Bu yerda messages statedagi isRead=false larni isRead=true deb o'zgaritib ko'yish kerak
+       setMessages(prev => prev.map(m => m.userId !== readBy ? { ...m, isRead: true } : m));
+    });
+
+    // c) "<Ism> yozmoqda..." (Typing indicator)
+    socket.on("typing", ({ chatId, userId }) => {
+       // "Typing..." animatsiyasini false dan true qilib ko'rsating
+    });
+    socket.on("stop_typing", ({ chatId, userId }) => {
+       // "Typing..." animatsiyasini yashiring
+    });
+
+    // d) Foalanuvchi tirmokda kirdi-chiqdi (Online status updates)
+    socket.on("user_status", ({ userId, isOnline, lastSeen }) => {
+      // Userlar ro'yhati va sarlavhadagi holat qatorlarini shunga asosan yangilang
     });
 
     return () => {
-      // Komponent o'chganda (unmount) tozalaymiz
       socket.off("receive_message");
+      socket.off("messages_read");
+      socket.off("typing");
+      socket.off("stop_typing");
+      socket.off("user_status");
     };
   }, [chatId]);
 
-  // Jonli yuborish
+  // ==========================================
+  // XABAR YUBORISH MANTIQI
+  // ==========================================
   const sendMessage = (text) => {
-    // Frontenddan backendga xabar otamiz
     socket.emit("send_message", {
-      chatId: chatId,
+      chatId,
       userId: currentUser.id,
-      text: text
+      text
     });
-    
-    // Yuborgan xabarimizni UX tezligi uchun o'zimizga ham qo'lda qo'shib qoyishimiz mumkin (ixtiyoriy)
-    // Yoki backend "receive_message" qilib qaytarishini kutish ham mumkin
+    // typing o'chirish
+    socket.emit("stop_typing", { chatId, userId: currentUser.id });
   };
 
-  // HTML da setMessages va sendMessage ishtirok etishi kerak...
+  // Inputga yozayotganda
+  const onInputType = (e) => {
+     socket.emit("typing", { chatId, userId: currentUser.id });
+     // debounce qilib ma'lum soniyadan kegin stop_typing yuborish esdan chiqmasin
+  }
 }
 ```
 
-## 📝 4. Natija Qo'yiladigan Talablar
-O'zingiz ishga kirishayotganda ushbu talablarga e'tibor bering:
-1. **Chatlar ro'yxatida:** eng oxirgi yozilgan xabar (snippet/preview) ko'rinib tursin.
-2. **Scroll:** Chatga kirganda avtomatik eng pastga (eng yangi xabarlarga) tushib tursin.
-3. **Jonli ulanish himoyasi:** Agar foydalanuvchi uzilib qolsa (internet ketib qolsa), xabarlar yo'qolmasligi uchun ulanish tiklanganda `GET /chats/:chatId/messages` orqali yana bir bor ma'lumotni sinxron qilib oling.
-
-> **Ushbu texnik topshiriqda ko'rsatilgan strukturadan chetga chiqmang, barcha API va event nomlari aynan backenddagi kabi bo'lishi shart!**
+## 📝 4. Asosiy e'tibor qaratiladigan UX Talablar
+1. Ro'yxat eng yangi xabariga qarab saralanib turadi. Agar yangi xabar yuborilsa yoki kelsa Frontend shuni eng tepaga o'tkazishi kerak.
+2. `unreadCount` aylanachasi (badge)ni faqat qiymat 0 dan katta botlsagina ko'rsating.
+3. Chat ichida "O'qilganlik tikuvi (✓ / ✓✓)" to'g'ri algoritmlanganiga ishonch hosil qiling. Birovning yuborgan xabarida pichka chiqmaydi. O'zingiznikida chiqadi.
+4. Inputda **debounce** yordamida har bitta xarfdan so'ng `typing` yubormang, taymer qo'yib ozgina optimizatsiya qiling.
