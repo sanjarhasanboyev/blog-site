@@ -151,11 +151,11 @@ const Chats = () => {
     };
 
     const handleMessageDeleted = ({ messageId }) => {
-      setMessages(prev => prev.filter(m => m.id !== messageId));
+      setMessages(prev => prev.filter(m => m.id !== parseInt(messageId)));
     };
 
     const handleMessageEdited = ({ messageId, newText }) => {
-      setMessages(prev => prev.map(m => m.id === messageId ? { ...m, text: newText, isEdited: true } : m));
+      setMessages(prev => prev.map(m => m.id === parseInt(messageId) ? { ...m, text: newText, isEdited: true } : m));
     };
 
     socket.on("receive_message", handleReceiveMessage);
