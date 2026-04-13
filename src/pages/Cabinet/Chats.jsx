@@ -6,7 +6,7 @@ import Picker from 'emoji-picker-react';
 import { FiSmile } from 'react-icons/fi';
 import { io } from 'socket.io-client';
 
-const SOCKET_URL = 'https://highway-illustration-sought-released.trycloudflare.com';
+const SOCKET_URL = 'https://offer-cooler-watt-seeds.trycloudflare.com';
 
 const Chats = () => {
   const { user } = useAuth();
