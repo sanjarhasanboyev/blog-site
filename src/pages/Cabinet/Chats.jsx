@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { FiSearch, FiSend, FiMoreVertical, FiArrowLeft, FiMessageSquare, FiCheck } from 'react-icons/fi';
+import { createPortal } from 'react-dom';
+import { FiSearch, FiSend, FiMoreVertical, FiArrowLeft, FiMessageSquare, FiCheck, FiCopy, FiEdit2, FiTrash2, FiCornerUpRight } from 'react-icons/fi';
 import api from '../../api/api';
 import { useAuth } from '../../context/AuthContext';
 import Picker from 'emoji-picker-react';
@@ -23,13 +24,19 @@ const Chats = () => {
   const [messages, setMessages] = useState([]);
   const [messageInput, setMessageInput] = useState('');
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [contextMenu, setContextMenu] = useState(null);
   
+  const [editingMessage, setEditingMessage] = useState(null);
+  const [forwardModalOpen, setForwardModalOpen] = useState(false);
+  const [forwardingMessage, setForwardingMessage] = useState(null);
+
   // Real-time states
   const [remoteTyping, setRemoteTyping] = useState({}); // { chatId: boolean }
   const typingTimeoutRef = useRef(null);
 
   const emojiPickerRef = useRef(null);
   const chatEndRef = useRef(null);
+  const contextMenuRef = useRef(null);
   
   // 1. Ulanishni initsializatsiya qilish
   useEffect(() => {
@@ -143,11 +150,21 @@ const Chats = () => {
       setAllUsers(prev => prev.map(u => u.id === userId ? { ...u, isOnline, lastSeen } : u));
     };
 
+    const handleMessageDeleted = ({ messageId }) => {
+      setMessages(prev => prev.filter(m => m.id !== messageId));
+    };
+
+    const handleMessageEdited = ({ messageId, newText }) => {
+      setMessages(prev => prev.map(m => m.id === messageId ? { ...m, text: newText, isEdited: true } : m));
+    };
+
     socket.on("receive_message", handleReceiveMessage);
     socket.on("messages_read", handleMessagesRead);
     socket.on("typing", handleTyping);
     socket.on("stop_typing", handleStopTyping);
     socket.on("user_status", handleUserStatus);
+    socket.on("message_deleted", handleMessageDeleted);
+    socket.on("message_edited", handleMessageEdited);
 
     return () => {
       socket.off("receive_message", handleReceiveMessage);
@@ -155,6 +172,8 @@ const Chats = () => {
       socket.off("typing", handleTyping);
       socket.off("stop_typing", handleStopTyping);
       socket.off("user_status", handleUserStatus);
+      socket.off("message_deleted", handleMessageDeleted);
+      socket.off("message_edited", handleMessageEdited);
     };
   }, [socket, activeChatId, currentUser]);
 
@@ -164,6 +183,9 @@ const Chats = () => {
     const handleClickOutside = (event) => {
       if (emojiPickerRef.current && !emojiPickerRef.current.contains(event.target)) {
         setShowEmojiPicker(false);
+      }
+      if (contextMenuRef.current && !contextMenuRef.current.contains(event.target)) {
+        setContextMenu(null);
       }
     };
     document.addEventListener("mousedown", handleClickOutside);
@@ -208,16 +230,51 @@ const Chats = () => {
     e?.preventDefault();
     if (!messageInput.trim() || !activeChatId || !socket) return;
 
-    socket.emit("send_message", {
-      chatId: activeChatId,
-      userId: currentUser.id,
-      text: messageInput.trim()
-    });
+    if (editingMessage) {
+      socket.emit("edit_message", {
+        chatId: activeChatId,
+        messageId: editingMessage.id,
+        newText: messageInput.trim()
+      });
+      setMessages(prev => prev.map(m => m.id === editingMessage.id ? { ...m, text: messageInput.trim(), isEdited: true } : m));
+      setEditingMessage(null);
+    } else {
+      socket.emit("send_message", {
+        chatId: activeChatId,
+        userId: currentUser.id,
+        text: messageInput.trim()
+      });
+    }
 
     socket.emit("stop_typing", { chatId: activeChatId, userId: currentUser.id });
 
     setMessageInput('');
     setShowEmojiPicker(false);
+  };
+
+  const handleContextMenu = (e, msg) => {
+    e.preventDefault();
+    setContextMenu({
+      mouseX: e.clientX,
+      mouseY: e.clientY,
+      msg: msg,
+    });
+  };
+
+  const handleContextAction = (action) => {
+    if (action === 'copy' && contextMenu?.msg?.text) {
+      navigator.clipboard.writeText(contextMenu.msg.text);
+    } else if (action === 'delete' && contextMenu?.msg) {
+      socket.emit('delete_message', { chatId: activeChatId, messageId: contextMenu.msg.id });
+      setMessages(prev => prev.filter(m => m.id !== contextMenu.msg.id));
+    } else if (action === 'edit' && contextMenu?.msg) {
+      setEditingMessage(contextMenu.msg);
+      setMessageInput(contextMenu.msg.text);
+    } else if (action === 'forward' && contextMenu?.msg) {
+      setForwardingMessage(contextMenu.msg);
+      setForwardModalOpen(true);
+    }
+    setContextMenu(null);
   };
 
   // Typing debounce logic
@@ -462,12 +519,22 @@ const Chats = () => {
                   const itIsMe = isMyMessage(msg);
                   return (
                     <div key={msg.id || idx} className={`flex w-full ${itIsMe ? 'justify-end' : 'justify-start'}`}>
-                      <div className={`max-w-[75%] px-3.5 py-2.5 rounded-2xl shadow-sm relative group flex flex-col ${
+                      <div 
+                        onContextMenu={(e) => handleContextMenu(e, msg)}
+                        className={`max-w-[75%] px-3.5 py-2.5 rounded-2xl shadow-sm relative group flex flex-col transition-colors cursor-pointer ${
                         itIsMe 
-                          ? 'bg-black text-white rounded-br-none' 
-                          : 'bg-white border border-gray-100 text-gray-900 rounded-bl-none'
+                          ? 'bg-black text-white rounded-br-none hover:bg-gray-900' 
+                          : 'bg-white border border-gray-100 text-gray-900 rounded-bl-none hover:bg-gray-50'
                       }`}>
-                        <p className="text-[15px] leading-relaxed break-words pr-8">{msg.text}</p>
+                        <div className="text-[15px] leading-relaxed break-words pr-8">
+                          {msg.isForwarded && (
+                            <span className="block text-[11.5px] font-medium opacity-80 mb-1 border-l-2 border-current pl-1.5 italic">
+                              Forwarded from {msg.originalAuthor || 'User'}
+                            </span>
+                          )}
+                          <span>{msg.text}</span>
+                          {msg.isEdited && <span className="text-[10px] opacity-70 ml-2 italic">(edited)</span>}
+                        </div>
                         
                         <div className={`flex items-center self-end gap-1 mt-1 -mb-1 ${itIsMe ? 'text-gray-400' : 'text-gray-400'}`}>
                           <span className="text-[10px] leading-none opacity-80 whitespace-nowrap">
@@ -488,8 +555,21 @@ const Chats = () => {
             </div>
 
             {/* Input Area */}
-            <div className="p-3 bg-white border-t border-gray-100">
-              <form onSubmit={handleSendMessage} className="flex items-end gap-2 max-w-4xl mx-auto">
+            <div className="p-3 bg-white border-t border-gray-100 flex flex-col items-center">
+              {editingMessage && (
+                <div className="flex items-center justify-between bg-blue-50/50 px-4 py-2.5 mb-3 rounded-xl border border-blue-100/50 w-full max-w-4xl mx-auto backdrop-blur-sm animate-in fade-in slide-in-from-bottom-2">
+                  <div className="flex flex-col overflow-hidden">
+                    <span className="text-blue-600 font-semibold text-[13px] flex items-center gap-1.5">
+                      <FiEdit2 size={12} /> Tahrirlanmoqda
+                    </span>
+                    <span className="text-gray-500 text-sm truncate max-w-full italic mt-0.5">{editingMessage.text}</span>
+                  </div>
+                  <button type="button" onClick={() => { setEditingMessage(null); setMessageInput(''); }} className="w-7 h-7 flex items-center justify-center rounded-full bg-white hover:bg-gray-100 text-gray-500 transition-colors shrink-0 shadow-sm border border-gray-100">
+                    ✕
+                  </button>
+                </div>
+              )}
+              <form onSubmit={handleSendMessage} className="flex items-end gap-2 max-w-4xl mx-auto w-full">
                 <div className="flex-1 bg-gray-50 border border-gray-200 rounded-2xl focus-within:ring-2 focus-within:ring-black/5 focus-within:border-black/20 transition-all flex items-end relative overflow-visible">
                   
                   <div className="relative" ref={emojiPickerRef}>
@@ -545,6 +625,102 @@ const Chats = () => {
           </>
         )}
       </div>
+
+      {/* Context Menu Modal */}
+      {contextMenu && createPortal(
+        <div 
+          ref={contextMenuRef}
+          style={{ 
+            top: Math.min(contextMenu.mouseY, window.innerHeight - 220), 
+            left: Math.min(contextMenu.mouseX, window.innerWidth - 200) 
+          }}
+          className="fixed z-[9999] bg-white border border-gray-100 rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] w-48 overflow-hidden py-1.5 text-[15px] font-medium text-gray-700 animate-in fade-in zoom-in-95 duration-100"
+        >
+          <button 
+            onClick={() => handleContextAction('forward')} 
+            className="w-full flex items-center px-4 py-2.5 hover:bg-gray-50 transition-colors text-left"
+          >
+            <FiCornerUpRight className="mr-3 text-gray-500" size={18} /> Forward
+          </button>
+          
+          <button 
+            onClick={() => handleContextAction('copy')} 
+            className="w-full flex items-center px-4 py-2.5 hover:bg-gray-50 transition-colors text-left"
+          >
+            <FiCopy className="mr-3 text-gray-500" size={18} /> Copy
+          </button>
+          
+          {contextMenu.msg && isMyMessage(contextMenu.msg) && (
+            <button 
+              onClick={() => handleContextAction('edit')} 
+              className="w-full flex items-center px-4 py-2.5 hover:bg-gray-50 transition-colors text-left"
+            >
+              <FiEdit2 className="mr-3 text-gray-500" size={18} /> Edit
+            </button>
+          )}
+          
+          {contextMenu.msg && isMyMessage(contextMenu.msg) && (
+            <>
+              <div className="h-[1px] bg-gray-100 my-1 w-full"></div>
+              <button 
+                onClick={() => handleContextAction('delete')} 
+                className="w-full flex items-center px-4 py-2.5 hover:bg-red-50 text-red-500 transition-colors text-left"
+              >
+                <FiTrash2 className="mr-3 text-red-400" size={18} /> Delete
+              </button>
+            </>
+          )}
+        </div>,
+        document.body
+      )}
+
+      {/* Forward Modal */}
+      {forwardModalOpen && createPortal(
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl w-full max-w-sm shadow-xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-200">
+            <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between bg-white">
+              <h3 className="font-bold text-lg text-gray-900">Forward qilish</h3>
+              <button 
+                onClick={() => { setForwardModalOpen(false); setForwardingMessage(null); }}
+                className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 hover:bg-gray-200 text-gray-500 transition-colors"
+              >✕</button>
+            </div>
+            <div className="max-h-[60vh] overflow-y-auto p-2 bg-white custom-scrollbar">
+              <div className="text-xs font-bold text-gray-400 uppercase tracking-wider px-3 mb-2 mt-2">Suhbatlar</div>
+              {displayChats.map(c => {
+                const partner = getChatPartner(c);
+                if (!partner) return null;
+                return (
+                  <button
+                    key={'fwd-'+c.id}
+                    onClick={() => {
+                      socket.emit("send_message", {
+                        chatId: c.id,
+                        userId: currentUser.id,
+                        text: forwardingMessage.text,
+                        isForwarded: true,
+                        originalAuthor: forwardingMessage.user?.name || forwardingMessage.userId
+                      });
+                      setForwardModalOpen(false);
+                      setForwardingMessage(null);
+                    }}
+                    className="w-full flex items-center p-3 rounded-xl hover:bg-gray-50 transition-colors text-left"
+                  >
+                    <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center font-bold text-gray-800 mr-3 shrink-0">
+                      {partner.name?.charAt(0).toUpperCase()}
+                    </div>
+                    <div className="font-medium text-[15px] text-gray-900 truncate">{partner.name}</div>
+                  </button>
+                );
+              })}
+              {displayChats.length === 0 && (
+                <div className="text-center text-sm text-gray-400 py-6">Chatlar topilmadi.</div>
+              )}
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
 
     </div>
   );
